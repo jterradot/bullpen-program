@@ -2,7 +2,7 @@ import requests
 from datetime import datetime, date
 from pybaseball import statcast_batter, statcast_pitcher, pitching_stats
 
- 
+
 teams = {
     "arizona diamondbacks": 109,
     "atlanta braves": 144,
@@ -36,11 +36,25 @@ teams = {
     "washington nationals": 120
 }
 
-pteam_input = input("Enter bullpen team name (City Mascot): ").lower()
-pteam_id = teams[pteam_input]
+while True:
+    pteam_input = input("Enter bullpen team name (City Mascot): ").lower().strip()
+    
+    pteam_id = teams.get(pteam_input)
+    
+    if pteam_id:
+        break
+    else:
+        print("Invalid team name. Try again.")
 
-bteam_input = input("Enter batters team name (City Mascot): ").lower()
-bteam_id = teams[bteam_input]
+while True:
+    bteam_input = input("Enter batter team name (City Mascot): ").lower().strip()
+    
+    bteam_id = teams.get(bteam_input)
+    
+    if bteam_id:
+        break
+    else:
+        print("Invalid team name. Try again.")
 
 presponse = requests.get(f"https://statsapi.mlb.com/api/v1/teams/{pteam_id}/roster?rosterType=fullRoster&season=2025")
 proster = presponse.json()
@@ -48,18 +62,21 @@ proster = presponse.json()
 bresponse = requests.get(f"https://statsapi.mlb.com/api/v1/teams/{bteam_id}/roster?rosterType=fullRoster&season=2025")
 broster = bresponse.json()
 
-batter_inputs = [
-  input("Enter batter 1 (First Last): ").lower(),
-  input("Enter batter 2 (First Last): ").lower(),
-  input("Enter batter 3 (First Last): ").lower()
-]
-
 batter_ids = []
-for name in batter_inputs:
-    for player in broster["roster"]:
-        if player["person"]["fullName"].lower() == name:
-            batter_ids.append(player["person"]["id"])
-            break
+
+for i in range(1, 4):
+    while True:
+        name = input(f"Enter batter {i} (First Last): ").lower().strip()
+        
+        for player in broster["roster"]:
+            if player["person"]["fullName"].lower() == name:
+                batter_ids.append(player["person"]["id"])
+                break
+        else:
+            print(f"Player '{name}' not found. Try again.")
+            continue
+        
+        break
 
 batter1_id = batter_ids[0]
 batter2_id = batter_ids[1]

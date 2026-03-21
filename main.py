@@ -2,7 +2,6 @@ import requests
 from datetime import datetime, date
 from pybaseball import statcast_batter, statcast_pitcher, pitching_stats
 
- 
 
 teams = {
     "arizona diamondbacks": 109,
@@ -37,10 +36,10 @@ teams = {
     "washington nationals": 120
 }
 
-pteam_input = input("Enter bullpen team name: ").lower()
+pteam_input = input("Enter bullpen team name (City Mascot): ").lower()
 pteam_id = teams[pteam_input]
 
-bteam_input = input("Enter batters team name: ").lower()
+bteam_input = input("Enter batters team name (City Mascot): ").lower()
 bteam_id = teams[bteam_input]
 
 presponse = requests.get(f"https://statsapi.mlb.com/api/v1/teams/{pteam_id}/roster?rosterType=fullRoster&season=2025")
@@ -66,11 +65,10 @@ batter1_id = batter_ids[0]
 batter2_id = batter_ids[1]
 batter3_id = batter_ids[2]
 
-from pybaseball import pitching_stats
 stats = pitching_stats(2025, 2025, qual=1)
 
 
-def get_reliable_season(player_id):
+def pget_reliable_season(player_id):
     pyeardata = statcast_pitcher('2025-03-27', '2025-09-28', player_id=player_id)
     if len(pyeardata) >= 400:
         return pyeardata
@@ -82,8 +80,22 @@ def get_reliable_season(player_id):
         return pyeardata
     return None
 
+def bget_reliable_season(player_id):
+    byeardata = statcast_batter('2025-03-27', '2025-09-28', player_id=player_id)
+    if len(byeardata) >= 400:
+        return byeardata
+    byeardata = statcast_batter('2024-03-28', '2024-09-29', player_id=player_id)
+    if len(byeardata) >= 400:
+        return byeardata
+    byeardata = statcast_batter('2023-03-29', '2023-09-30', player_id=player_id)
+    if len(byeardata) >= 400:
+        return byeardata
+    return None
+
 def get_batter_profile(player_id):
-    bdata = statcast_batter('2025-03-27', '2025-09-28', player_id=player_id)
+    bdata = bget_reliable_season(player_id)
+    if bdata is None:
+        return None, None, None
 
     outside = bdata[bdata["zone"].isin([11, 12, 13, 14])]
     outside_swings = outside[outside["description"].isin(["swinging_strike", "swinging_strike_blocked", "foul", "foul_tip", "hit_into_play"])]
@@ -102,12 +114,11 @@ def get_batter_profile(player_id):
     bxwoba_norm = 1 - (bxwoba_by_zone - bxwoba_by_zone.min()) / (bxwoba_by_zone.max() - bxwoba_by_zone.min())
 
     bwhiff_norm = (bwhiff_percent_by_zone - bwhiff_percent_by_zone.min()) / (bwhiff_percent_by_zone.max() - bwhiff_percent_by_zone.min())
-
     return bxwoba_norm, bwhiff_norm, bchase_norm
 
 
 def get_pitcher_profile(player_id):
-    pdata = get_reliable_season(player_id)
+    pdata = pget_reliable_season(player_id)
     if pdata is None:
         return None, None, None
 
@@ -128,7 +139,6 @@ def get_pitcher_profile(player_id):
     pxwoba_norm = 1 - ((pxwoba_by_zone - pxwoba_by_zone.min()) / (pxwoba_by_zone.max() - pxwoba_by_zone.min()))
 
     pwhiff_norm = (pwhiff_percent_by_zone - pwhiff_percent_by_zone.min()) / (pwhiff_percent_by_zone.max() - pwhiff_percent_by_zone.min())
-
     return pxwoba_norm, pwhiff_norm, pchase_norm
 
 
@@ -139,10 +149,13 @@ def matchup_score(bxwoba_norm, bwhiff_norm, bchase_norm, pxwoba_norm, pwhiff_nor
     return zone_score.sum() + chase_contribution
 
 
-
-bxwoba_norm1, bwhiff_norm1, bchase_norm1 = get_batter_profile(batter1_id)
-bxwoba_norm2, bwhiff_norm2, bchase_norm2 = get_batter_profile(batter2_id)
-bxwoba_norm3, bwhiff_norm3, bchase_norm3 = get_batter_profile(batter3_id)
+batter_profiles = []
+for bid in [batter1_id, batter2_id, batter3_id]:
+    profile = get_batter_profile(bid)
+    if profile[0] is not None:
+        batter_profiles.append(profile)
+    else:
+        print(f"Not enough data for one batter, skipping")
 
 
 all_players_response = requests.get("https://statsapi.mlb.com/api/v1/sports/1/players?season=2025")
@@ -184,16 +197,17 @@ for player in proster["roster"]:
   if pxwoba_norm is None:
     print("Not enough data for this pitcher")
     continue
-  score1 = matchup_score(bxwoba_norm1, bwhiff_norm1, bchase_norm1, pxwoba_norm, pwhiff_norm, pchase_norm)
-  score2 = matchup_score(bxwoba_norm2, bwhiff_norm2, bchase_norm2, pxwoba_norm, pwhiff_norm, pchase_norm)
-  score3 = matchup_score(bxwoba_norm3, bwhiff_norm3, bchase_norm3, pxwoba_norm, pwhiff_norm, pchase_norm)
-  total_score = (score1 + score2 * 0.65 + score3 * 0.40) / 2.05
+  weights = [1.0, 0.65, 0.40]
+  total_score = 0
+  for i, (bxwoba, bwhiff, bchase) in enumerate(batter_profiles):
+        total_score += matchup_score(bxwoba, bwhiff, bchase, pxwoba_norm, pwhiff_norm, pchase_norm) * weights[i]
+  total_score /= sum(weights[:len(batter_profiles)])
   results.append((
-    player["jerseyNumber"],
-    player["person"]["fullName"],
-    hand_lookup[player_id],
-    availability,
-    total_score
+  player["jerseyNumber"],
+  player["person"]["fullName"],
+  hand_lookup[player_id],
+  availability,
+  total_score
 ))
 
 
