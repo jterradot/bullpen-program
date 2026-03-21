@@ -3,6 +3,9 @@ from main import run_analysis
 
 app = Flask(__name__)
 
+from flask import Flask, render_template, request, session
+app.secret_key = "bullpen123"
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -20,7 +23,21 @@ def analyze():
     if "error" in result:
         return render_template("index.html", error=result["error"])
 
-    return render_template("results.html", results=result["results"])
+    prev_results = session.get("prev_results", {})
+    current_order = {r[1]: i+1 for i, r in enumerate(result["results"])}
+
+    movements = {}
+    if session.get("prev_team") == pteam:
+        for name, rank in current_order.items():
+            if name in prev_results:
+                diff = prev_results[name] - rank
+                movements[name] = diff
+
+    session["prev_results"] = current_order
+    session["prev_team"] = pteam
+
+    return render_template("results.html", results=result["results"], movements=movements)
+
 
 if __name__ == "__main__":
     app.run(debug=True)

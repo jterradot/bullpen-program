@@ -2,6 +2,10 @@ import requests
 from datetime import datetime, date
 from pybaseball import statcast_batter, statcast_pitcher, pitching_stats
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import unicodedata
+
+def strip_accents(text):
+    return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
 
 
 teams = {
@@ -163,7 +167,7 @@ def process_pitcher(player):
         availability,
         total_score
     )
-            
+
 
 def run_analysis(pteam, bteam, batter1, batter2, batter3):
     global stats, batter_profiles, hand_lookup
@@ -186,7 +190,7 @@ def run_analysis(pteam, bteam, batter1, batter2, batter3):
     for name in [batter1.lower().strip(), batter2.lower().strip(), batter3.lower().strip()]:
         found = False
         for player in broster["roster"]:
-            if player["person"]["fullName"].lower() == name:
+            if strip_accents(player["person"]["fullName"].lower()) == strip_accents(name):
                 batter_ids.append(player["person"]["id"])
                 found = True
                 break
@@ -215,13 +219,17 @@ def run_analysis(pteam, bteam, batter1, batter2, batter3):
     hand_lookup = {p["id"]: p["pitchHand"]["code"] for p in all_players["people"]}
 
     results = []
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=4) as executor:
         futures = [executor.submit(process_pitcher, player) for player in proster["roster"]]
         for future in as_completed(futures):
-            result = future.result()
-            if result is not None:
-                results.append(result)
+            try:
+                result = future.result()
+                if result is not None:
+                    results.append(result)
+            except Exception:
+                continue
 
 
-    results.sort(reverse=True, key=lambda x: x[4])
-    return {"results": results}
+        results.sort(reverse=True, key=lambda x: x[4])
+    
+        return {"results": results}

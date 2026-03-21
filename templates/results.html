@@ -28,7 +28,14 @@
             <tr>
                 <td>{{ loop.index }}</td>
                 <td>#{{ jersey }}</td>
-                <td style="color: {{ availability }}">{{ name }}</td>
+                <td style="color: {{ availability }}">
+                    {{ name }}
+                    {% if movements.get(name, 0) > 0 %}
+                        <span style="color: green; font-size: 12px;">▲{{ movements.get(name, 0) }}</span>
+                    {% elif movements.get(name, 0) < 0 %}
+                        <span style="color: red; font-size: 12px;">▼{{ movements.get(name, 0)|abs }}</span>
+                    {% endif %}
+                </td>
                 <td>{{ hand }}</td>
                 <td>{{ "%.3f"|format(score) }}</td>
             </tr>

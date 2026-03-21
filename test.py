@@ -47,41 +47,49 @@ while True:
     else:
         print("Invalid team name. Try again.")
 
-while True:
-    bteam_input = input("Enter batter team name (City Mascot): ").lower().strip()
+# while True:
+#     bteam_input = input("Enter batter team name (City Mascot): ").lower().strip()
     
-    bteam_id = teams.get(bteam_input)
+#     bteam_id = teams.get(bteam_input)
     
-    if bteam_id:
-        break
-    else:
-        print("Invalid team name. Try again.")
+#     if bteam_id:
+#         break
+#     else:
+#         print("Invalid team name. Try again.")
 
 presponse = requests.get(f"https://statsapi.mlb.com/api/v1/teams/{pteam_id}/roster?rosterType=fullRoster&season=2025")
 proster = presponse.json()
 
-bresponse = requests.get(f"https://statsapi.mlb.com/api/v1/teams/{bteam_id}/roster?rosterType=fullRoster&season=2025")
-broster = bresponse.json()
+# bresponse = requests.get(f"https://statsapi.mlb.com/api/v1/teams/{bteam_id}/roster?rosterType=fullRoster&season=2025")
+# broster = bresponse.json()
 
-batter_ids = []
+# batter_ids = []
 
-for i in range(1, 4):
-    while True:
-        name = input(f"Enter batter {i} (First Last): ").lower().strip()
+# for i in range(1, 4):
+#     while True:
+#         name = input(f"Enter batter {i} (First Last): ").lower().strip()
         
-        for player in broster["roster"]:
-            if player["person"]["fullName"].lower() == name:
-                batter_ids.append(player["person"]["id"])
-                break
-        else:
-            print(f"Player '{name}' not found. Try again.")
-            continue
+#         for player in broster["roster"]:
+#             if player["person"]["fullName"].lower() == name:
+#                 batter_ids.append(player["person"]["id"])
+#                 break
+#         else:
+#             print(f"Player '{name}' not found. Try again.")
+#             continue
         
-        break
+#         break
 
-batter1_id = batter_ids[0]
-batter2_id = batter_ids[1]
-batter3_id = batter_ids[2]
+#low zone hitters
+batter1_id = 641313 #Tim Anderson
+batter2_id = 493329 #Yuli Gurriel
+batter3_id = 643446 #Jeff Mcneil
+
+#high zone hitters
+# batter1_id = 571970 #Max Muncy
+# batter2_id = 656941 #Kyle Schwarber
+# batter3_id = 687597 #Jordan Beck
+
+
 
 stats = pitching_stats(2025, 2025, qual=1)
 
