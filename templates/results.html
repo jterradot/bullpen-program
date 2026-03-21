@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bullpen Results</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; justify-content: center; padding: 40px; background-color: #f0f0f0; }
+        .container { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
+        table { border-collapse: collapse; width: 100%; }
+        th { background-color: #461d76; color: white; padding: 10px 20px; }
+        td { padding: 8px 20px; text-align: center; border-bottom: 1px solid #eee; }
+        tr:hover { background-color: #f5f5f5; }
+        a { display: block; text-align: center; margin-top: 20px; color: #461d76; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bullpen Recommendations</h1>
+        <table>
+            <tr>
+                <th>Rank</th>
+                <th>Jersey</th>
+                <th>Name</th>
+                <th>Throws</th>
+                <th>Score</th>
+            </tr>
+            {% for jersey, name, hand, availability, score in results %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>#{{ jersey }}</td>
+                <td style="color: {{ availability }}">{{ name }}</td>
+                <td>{{ hand }}</td>
+                <td>{{ "%.3f"|format(score) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        <a href="/">Run Again</a>
+    </div>
+</body>
+</html>

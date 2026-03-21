@@ -37,54 +37,6 @@ teams = {
     "washington nationals": 120
 }
 
-while True:
-    pteam_input = input("Enter bullpen team name (City Mascot): ").lower().strip()
-    
-    pteam_id = teams.get(pteam_input)
-    
-    if pteam_id:
-        break
-    else:
-        print("Invalid team name. Try again.")
-
-while True:
-    bteam_input = input("Enter batter team name (City Mascot): ").lower().strip()
-    
-    bteam_id = teams.get(bteam_input)
-    
-    if bteam_id:
-        break
-    else:
-        print("Invalid team name. Try again.")
-
-presponse = requests.get(f"https://statsapi.mlb.com/api/v1/teams/{pteam_id}/roster?rosterType=fullRoster&season=2025")
-proster = presponse.json()
-
-bresponse = requests.get(f"https://statsapi.mlb.com/api/v1/teams/{bteam_id}/roster?rosterType=fullRoster&season=2025")
-broster = bresponse.json()
-
-batter_ids = []
-
-for i in range(1, 4):
-    while True:
-        name = input(f"Enter batter {i} (First Last): ").lower().strip()
-        
-        for player in broster["roster"]:
-            if player["person"]["fullName"].lower() == name:
-                batter_ids.append(player["person"]["id"])
-                break
-        else:
-            print(f"Player '{name}' not found. Try again.")
-            continue
-        
-        break
-
-batter1_id = batter_ids[0]
-batter2_id = batter_ids[1]
-batter3_id = batter_ids[2]
-
-stats = pitching_stats(2025, 2025, qual=1)
-
 
 def pget_reliable_season(player_id):
     pyeardata = statcast_pitcher('2025-03-27', '2025-09-28', player_id=player_id)
@@ -167,20 +119,6 @@ def matchup_score(bxwoba_norm, bwhiff_norm, bchase_norm, pxwoba_norm, pwhiff_nor
     return zone_score.sum() + chase_contribution
 
 
-batter_profiles = []
-for bid in [batter1_id, batter2_id, batter3_id]:
-    profile = get_batter_profile(bid)
-    if profile[0] is not None:
-        batter_profiles.append(profile)
-    else:
-        print(f"Not enough data for one batter, skipping")
-
-
-all_players_response = requests.get("https://statsapi.mlb.com/api/v1/sports/1/players?season=2025")
-all_players = all_players_response.json()
-hand_lookup = {p["id"]: p["pitchHand"]["code"] for p in all_players["people"]}
-
-
 
 def process_pitcher(player):
     if player["position"]["name"] != "Pitcher":
@@ -227,15 +165,63 @@ def process_pitcher(player):
     )
             
 
-results = []
-with ThreadPoolExecutor() as executor:
-    futures = [executor.submit(process_pitcher, player) for player in proster["roster"]]
-    for future in as_completed(futures):
-        result = future.result()
-        if result is not None:
-            results.append(result)
+def run_analysis(pteam, bteam, batter1, batter2, batter3):
+    global stats, batter_profiles, hand_lookup
+
+    pteam_id = teams.get(pteam.lower().strip())
+    if not pteam_id:
+        return {"error": f"'{pteam}' is not a valid team name"}
+
+    bteam_id = teams.get(bteam.lower().strip())
+    if not bteam_id:
+        return {"error": f"'{bteam}' is not a valid team name"}
+
+    presponse = requests.get(f"https://statsapi.mlb.com/api/v1/teams/{pteam_id}/roster?rosterType=fullRoster&season=2025")
+    proster = presponse.json()
+
+    bresponse = requests.get(f"https://statsapi.mlb.com/api/v1/teams/{bteam_id}/roster?rosterType=fullRoster&season=2025")
+    broster = bresponse.json()
+
+    batter_ids = []
+    for name in [batter1.lower().strip(), batter2.lower().strip(), batter3.lower().strip()]:
+        found = False
+        for player in broster["roster"]:
+            if player["person"]["fullName"].lower() == name:
+                batter_ids.append(player["person"]["id"])
+                found = True
+                break
+        if not found:
+            return {"error": f"'{name}' not found on {bteam} roster"}
+
+    batter1_id = batter_ids[0]
+    batter2_id = batter_ids[1]
+    batter3_id = batter_ids[2]
 
 
-results.sort(reverse=True, key=lambda x: x[4])
-for jersey, name, hand, availability, score in results:
-    print(f"#{jersey} {name} {hand} {availability} {round(score, 3)}")
+
+    stats = pitching_stats(2025, 2025, qual=1)
+
+    batter_profiles = []
+    for bid in [batter1_id, batter2_id, batter3_id]:
+        profile = get_batter_profile(bid)
+        if profile[0] is not None:
+            batter_profiles.append(profile)
+        else:
+            print(f"Not enough data for one batter, skipping")
+
+
+    all_players_response = requests.get("https://statsapi.mlb.com/api/v1/sports/1/players?season=2025")
+    all_players = all_players_response.json()
+    hand_lookup = {p["id"]: p["pitchHand"]["code"] for p in all_players["people"]}
+
+    results = []
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(process_pitcher, player) for player in proster["roster"]]
+        for future in as_completed(futures):
+            result = future.result()
+            if result is not None:
+                results.append(result)
+
+
+    results.sort(reverse=True, key=lambda x: x[4])
+    return {"results": results}
