@@ -1,6 +1,7 @@
 import requests
 from datetime import datetime, date
 from pybaseball import statcast_batter, statcast_pitcher, pitching_stats
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 teams = {
@@ -181,51 +182,58 @@ hand_lookup = {p["id"]: p["pitchHand"]["code"] for p in all_players["people"]}
 
 
 
-results = []
-
-for player in proster["roster"]:
- if player["position"]["name"] == "Pitcher":
-  player_id = player["person"]["id"]
-  player_stats = stats[stats["Name"] == player["person"]["fullName"]]
-  if not player_stats.empty:
-   if player_stats["GS"].values[0] == player_stats["G"].values[0]:
-    continue
-  response = requests.get(f"https://statsapi.mlb.com/api/v1/people/{player_id}/stats?stats=gameLog&group=pitching&season=2025")
-  data = response.json()
-  last_outing = data["stats"][0]["splits"][-1]
-  last_pitched = datetime.strptime(last_outing["date"], "%Y-%m-%d").date()
-  days_ago = (date.today() - last_pitched).days
-  total_pitches = last_outing["stat"]["numberOfPitches"]
-  if days_ago > 3:
-   availability = "green"
-  elif 3 >= days_ago > 1:
-   if 40 >= total_pitches >= 0:
-    availability = "green"
-   elif 60 >= total_pitches > 40:
-    availability = "yellow"
-   else:
-    availability = "red"
-  else:
-   if 15 >= total_pitches >= 0:
-    availability = "yellow"
-   else:
-    availability = "red"
-  pxwoba_norm, pwhiff_norm, pchase_norm = get_pitcher_profile(player_id)
-  if pxwoba_norm is None:
-    print("Not enough data for this pitcher")
-    continue
-  weights = [1.0, 0.65, 0.40]
-  total_score = 0
-  for i, (bxwoba, bwhiff, bchase) in enumerate(batter_profiles):
+def process_pitcher(player):
+    if player["position"]["name"] != "Pitcher":
+        return None
+    player_id = player["person"]["id"]
+    player_stats = stats[stats["Name"] == player["person"]["fullName"]]
+    if not player_stats.empty:
+        if player_stats["GS"].values[0] == player_stats["G"].values[0]:
+            return None
+    response = requests.get(f"https://statsapi.mlb.com/api/v1/people/{player_id}/stats?stats=gameLog&group=pitching&season=2025")
+    data = response.json()
+    last_outing = data["stats"][0]["splits"][-1]
+    last_pitched = datetime.strptime(last_outing["date"], "%Y-%m-%d").date()
+    days_ago = (date.today() - last_pitched).days
+    total_pitches = last_outing["stat"]["numberOfPitches"]
+    if days_ago > 3:
+        availability = "green"
+    elif 3 >= days_ago > 1:
+        if 40 >= total_pitches >= 0:
+            availability = "green"
+        elif 60 >= total_pitches > 40:
+            availability = "yellow"
+        else:
+            availability = "red"
+    else:
+        if 15 >= total_pitches >= 0:
+            availability = "yellow"
+        else:
+            availability = "red"
+    pxwoba_norm, pwhiff_norm, pchase_norm = get_pitcher_profile(player_id)
+    if pxwoba_norm is None:
+        return None
+    weights = [1.0, 0.65, 0.40]
+    total_score = 0
+    for i, (bxwoba, bwhiff, bchase) in enumerate(batter_profiles):
         total_score += matchup_score(bxwoba, bwhiff, bchase, pxwoba_norm, pwhiff_norm, pchase_norm) * weights[i]
-  total_score /= sum(weights[:len(batter_profiles)])
-  results.append((
-  player["jerseyNumber"],
-  player["person"]["fullName"],
-  hand_lookup[player_id],
-  availability,
-  total_score
-))
+    total_score /= sum(weights[:len(batter_profiles)])
+    return (
+        player["jerseyNumber"],
+        player["person"]["fullName"],
+        hand_lookup[player_id],
+        availability,
+        total_score
+    )
+            
+
+results = []
+with ThreadPoolExecutor() as executor:
+    futures = [executor.submit(process_pitcher, player) for player in proster["roster"]]
+    for future in as_completed(futures):
+        result = future.result()
+        if result is not None:
+            results.append(result)
 
 
 results.sort(reverse=True, key=lambda x: x[4])
