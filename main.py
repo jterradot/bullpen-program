@@ -128,10 +128,9 @@ def process_pitcher(player):
     if player["position"]["name"] != "Pitcher":
         return None
     player_id = player["person"]["id"]
-    player_stats = stats[stats["Name"] == player["person"]["fullName"]]
-    if not player_stats.empty:
-        if player_stats["GS"].values[0] == player_stats["G"].values[0]:
-            return None
+    pid_stats = starter_lookup.get(player_id, {})
+    if pid_stats.get("GS", 0) == pid_stats.get("G", 1):
+        return None
     response = requests.get(f"https://statsapi.mlb.com/api/v1/people/{player_id}/stats?stats=gameLog&group=pitching&season=2025")
     data = response.json()
     last_outing = data["stats"][0]["splits"][-1]
@@ -170,8 +169,7 @@ def process_pitcher(player):
 
 
 def run_analysis(pteam, bteam, batter1, batter2, batter3):
-    global stats, batter_profiles, hand_lookup
-
+    global starter_lookup, batter_profiles, hand_lookup
     pteam_id = teams.get(pteam.lower().strip())
     if not pteam_id:
         return {"error": f"'{pteam}' is not a valid team name"}
@@ -203,7 +201,17 @@ def run_analysis(pteam, bteam, batter1, batter2, batter3):
 
 
 
-    stats = pitching_stats(2025, 2025, qual=1)
+    stats_response = requests.get(
+    f"https://statsapi.mlb.com/api/v1/stats?stats=season&group=pitching&season=2025&teamId={pteam_id}&playerPool=ALL"
+    )
+    stats_data = stats_response.json()
+    starter_lookup = {}
+    for split in stats_data["stats"][0]["splits"]:
+        pid = split["player"]["id"]
+        starter_lookup[pid] = {
+            "G": split["stat"]["gamesPlayed"],
+            "GS": split["stat"]["gamesStarted"]
+        }
 
     batter_profiles = []
     for bid in [batter1_id, batter2_id, batter3_id]:

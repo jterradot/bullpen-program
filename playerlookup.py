@@ -1,6 +1,6 @@
 
 import requests
-response = requests.get("https://statsapi.mlb.com/api/v1/teams/144/roster?rosterType=fullRoster&season=2025")
-roster = response.json()
-for player in roster["roster"]:
-    print(player["person"]["fullName"].lower())
+
+r = requests.get("https://statsapi.mlb.com/api/v1/teams/147/stats?stats=season&group=pitching&season=2025")
+data = r.json()
+print(data["stats"][0]["splits"][0])
